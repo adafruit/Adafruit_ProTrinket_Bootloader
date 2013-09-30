@@ -111,7 +111,7 @@ static	uchar				cmd0;				// current read/write command byte
 static	uint8_t				remaining;			// bytes remaining in current transaction
 static	uchar				buffer[8];			// talk via setup
 static uint8_t				timeout = 0;		// timeout counter for USB comm
-static char				usbHasRxed = 0;		// whether or not USB comm is active
+volatile char				usbHasRxed = 0;		// whether or not USB comm is active
 
 void (*app_start)(void) = 0x0000; // function at start of flash memory, call to exit bootloader
 
@@ -147,7 +147,6 @@ uchar	usbFunctionSetup ( uchar data[8] )
 	timeout = 0;
 	// indicate activity
 	LED_PORTx |= _BV(LED_BIT);
-	usbHasRxed = 1;
 
 	// Generic requests
 	req = data[1];
