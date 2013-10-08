@@ -145,6 +145,7 @@ char optibootPoll()
       // Adaboot no-wait mod
       //watchdogConfig(WATCHDOG_16MS);
       if (verifySpace()) return 2;
+      putch(STK_OK);
       return 2;
     }
     else {
