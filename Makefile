@@ -45,7 +45,7 @@ DEFINES =
 CFLAGS = -Wall -Os -I. -mmcu=$(DEVICE) -DF_CPU=$(F_CPU) $(DEFINES)
 LDFLAGS = -Wl,--relax,--gc-sections -Wl,--section-start=.text=$(BOOTLOADER_ADDRESS)
 
-OBJECTS = usbdrv/usbdrvasm.o main.o
+OBJECTS = usbdrv/usbdrvasm.o main.o optiboot.o
 
 # symbolic targets:
 all: main.hex

@@ -40,12 +40,13 @@
 #define MCUSR MCUCSR // hack for enabling ATmega8 support
 #endif
 #define	SIGRD	5	// this is missing from some of the io.h files, this is a hack so avr/boot.h can be used
-#include <avr/boot.h>
+#include "avr_boot.h"
 #include <avr/pgmspace.h>
 //#include <avr/fuse.h>
 #include <avr/interrupt.h>
 #include <avr/wdt.h>
 //#include <util/delay.h>
+#include "pin_defs.h"
 #include <bootloaderconfig.h>
 #include <usbdrv/usbdrv.c>	// must be included, because of static function declarations are being used, which saves flash space
 
@@ -58,14 +59,10 @@
 #define ENABLE_FUSE_READING
 #define ENABLE_REQUEST_EXIT // note: enabling this actually decreases code size
 #define ENABLE_CLEAN_EXIT // must be used with ENABLE_REQUEST_EXIT
+#define ENABLE_OPTIBOOT
 
 // timeout for the bootloader
 #define BOOTLOADER_TIMEOUT 5
-
-// define hardware here
-#define LED_DDRx  DDRB
-#define LED_PORTx PORTB
-#define LED_BIT   5
 
 enum
 {
@@ -110,8 +107,8 @@ static	uchar				dirty = 0;			// if flash needs to be written
 static	uchar				cmd0;				// current read/write command byte
 static	uint8_t				remaining;			// bytes remaining in current transaction
 static	uchar				buffer[8];			// talk via setup
-static uint8_t				timeout = 0;		// timeout counter for USB comm
-volatile char				usbHasRxed = 0;		// whether or not USB comm is active
+static	uint8_t				timeout = 0;		// timeout counter for USB comm
+volatile	char			usbHasRxed = 0;		// whether or not USB comm is active
 
 void (*app_start)(void) = 0x0000; // function at start of flash memory, call to exit bootloader
 
@@ -146,7 +143,7 @@ uchar	usbFunctionSetup ( uchar data[8] )
 	// reset the bootloader timeout timer
 	timeout = 0;
 	// indicate activity
-	LED_PORTx |= _BV(LED_BIT);
+	LED_PORT |= _BV(LED);
 
 	// Generic requests
 	req = data[1];
@@ -353,7 +350,7 @@ int	main ( void )
 	// start 16-bit timer1
 	TCCR1B = 0x05;
 
-	LED_DDRx |= _BV(LED_BIT); // LED pin on Trinket Pro
+	LED_DDR |= _BV(LED); // LED pin on Trinket Pro
 
 	// start USB and force a re-enumeration by faking a disconnect
 	usbInit();
@@ -362,10 +359,24 @@ int	main ( void )
 	usbDeviceConnect();
 	sei();
 
+	#ifdef ENABLE_OPTIBOOT
+	optiboot_init();
+	#endif
+
 	// main program loop
 	while (1)
 	{
 		usbPoll();
+
+		#ifdef ENABLE_OPTIBOOT
+		char ob = optibootPoll();
+		if (ob == 1) {
+			timeout = 0;
+		}
+		else if (ob == 2) {
+			break;
+		}
+		#endif
 
 		if ((timeout > BOOTLOADER_TIMEOUT)
 		#ifdef ENABLE_REQUEST_EXIT
@@ -389,17 +400,17 @@ int	main ( void )
 		{
 			// blink LED if connected to computer
 			if ((t & 4096) == 0) {
-				LED_PORTx |= _BV(LED_BIT);
+				LED_PORT |= _BV(LED);
 			}
 			else {
-				LED_PORTx &= ~_BV(LED_BIT);
+				LED_PORT &= ~_BV(LED);
 			}
 		}
 	}
 
 	// turn off and return port to normal
-	LED_PORTx &= ~_BV(LED_BIT);
-	LED_DDRx  &= ~_BV(LED_BIT);
+	LED_PORT &= ~_BV(LED);
+	LED_DDR  &= ~_BV(LED);
 
 	#if defined(ENABLE_REQUEST_EXIT) && defined(ENABLE_CLEAN_EXIT)
 	// wait to finish all USB comms, avoids "avrdude: error: usbtiny_transmit: usb_control_msg: sending control message failed"
