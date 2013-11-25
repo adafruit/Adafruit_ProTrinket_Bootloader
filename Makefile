@@ -15,7 +15,7 @@
 #     make flash   # to load the boot loader into flash
 #     make lock    # to protect the boot loader from overwriting
 
-F_CPU = 12000000
+F_CPU = 16000000
 DEVICE = atmega328p
 # if the code size is over 2K (under 4K), the BOOTLOADER_ADDRESS is 1000 for 8K devices, 3000 for 16K and 7000 for 32K
 # if the code size is under 2K, the BOOTLOADER_ADDRESS is 1800 for 8K devices, 3800 for 16K and 7800 for 32K

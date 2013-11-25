@@ -47,6 +47,8 @@
 #include <avr/wdt.h>
 //#include <util/delay.h>
 #include "pin_defs.h"
+#include "optiboot.h"
+#include <usbconfig.h>
 #include <bootloaderconfig.h>
 #include <usbdrv/usbdrv.c>	// must be included, because of static function declarations are being used, which saves flash space
 
@@ -355,7 +357,9 @@ int	main ( void )
 	// start USB and force a re-enumeration by faking a disconnect
 	usbInit();
 	usbDeviceDisconnect();
+	LED_PORT |= _BV(LED);
 	while (TCNT1 < 4000);
+	LED_PORT &= ~_BV(LED);
 	usbDeviceConnect();
 	sei();
 
