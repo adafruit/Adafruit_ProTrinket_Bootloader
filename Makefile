@@ -42,7 +42,7 @@ CC = avr-gcc
 # Options:
 DEFINES = 
 # Remove the -fno-* options when you use gcc 3, it does not understand them ( -fno-move-loop-invariants -fno-tree-scev-cprop -fno-inline-small-functions )
-CFLAGS = -Wall -Os -I. -mmcu=$(DEVICE) -DF_CPU=$(F_CPU) $(DEFINES)
+CFLAGS = -Wall -Os -I. -mmcu=$(DEVICE) -DF_CPU=$(F_CPU) -DBOOTLOADER_ADDRESS=0x$(BOOTLOADER_ADDRESS) $(DEFINES)
 LDFLAGS = -Wl,--relax,--gc-sections -Wl,--section-start=.text=$(BOOTLOADER_ADDRESS)
 
 OBJECTS = usbdrv/usbdrvasm.o main.o optiboot.o
@@ -79,7 +79,7 @@ read_fuses:
 	$(UISP) --rd_fuses
 
 clean:
-	rm -f main.hex main.bin *.o usbdrv/*.o main.s usbdrv/oddebug.s usbdrv/usbdrv.s
+	rm -f main.hex main.bin $(OBJECTS)
 
 # file targets:
 main.bin:	$(OBJECTS)

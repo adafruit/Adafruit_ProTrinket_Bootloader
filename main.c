@@ -57,11 +57,14 @@
 #define ENABLE_FLASH_READING
 #define ENABLE_EEPROM_WRITING
 #define ENABLE_EEPROM_READING
+#define ENABLE_CHIP_ERASE
+#define ENABLE_CHIP_ERASE_EEPROM_FUSE_CHECK
 #define ENABLE_SIG_READING
 #define ENABLE_FUSE_READING
 #define ENABLE_REQUEST_EXIT // note: enabling this actually decreases code size
 #define ENABLE_CLEAN_EXIT // must be used with ENABLE_REQUEST_EXIT
 #define ENABLE_OPTIBOOT
+#define ENABLE_BLANK_CHECK
 
 // timeout for the bootloader
 #define BOOTLOADER_TIMEOUT 5
@@ -111,6 +114,9 @@ static	uint8_t				remaining;			// bytes remaining in current transaction
 static	uchar				buffer[8];			// talk via setup
 static	uint8_t				timeout = 0;		// timeout counter for USB comm
 volatile	char			usbHasRxed = 0;		// whether or not USB comm is active
+#ifdef ENABLE_BLANK_CHECK
+static uchar				isBlank;			// only allow exit if chip isn't blank
+#endif
 
 void (*app_start)(void) = 0x0000; // function at start of flash memory, call to exit bootloader
 
@@ -133,6 +139,43 @@ static void finalize_flash_if_dirty()
 		dirty = 0;
 	}
 }
+
+#ifdef ENABLE_CHIP_ERASE
+// ----------------------------------------------------------------------
+// chip erase
+// ----------------------------------------------------------------------
+static void perform_chip_erase()
+{
+	addr_t i;
+
+	for (i = 0; i
+	#ifdef BOOTLOADER_ADDRESS
+	< (addr_t)BOOTLOADER_ADDRESS;
+	#else
+	<= (addr_t)FLASHEND;
+	#endif
+	i += SPM_PAGESIZE)
+	{
+		boot_spm_busy_wait();
+		cli();
+		boot_page_erase(i);
+		sei();
+	}
+
+	#ifdef ENABLE_CHIP_ERASE_EEPROM_FUSE_CHECK
+	uint8_t hfuse = boot_lock_fuse_bits_get(GET_HIGH_FUSE_BITS);
+	if ((hfuse & (1 << 3)) != 0) // the bit location of EESAVE
+	{
+	#else
+	{
+	#endif
+		for (i = 0; i <= E2END; i++)
+		{
+			eeprom_update_byte((uint8_t *)i, 0xFF);
+		}
+	}
+}
+#endif
 
 // ----------------------------------------------------------------------
 // Handle a non-standard SETUP packet.
@@ -220,6 +263,12 @@ uchar	usbFunctionSetup ( uchar data[8] )
 		#endif
 		#if !defined(ENABLE_SIG_READING) && !defined(ENABLE_FUSE_READING)
 		buffer[3] = 0;
+		#endif
+
+		#ifdef ENABLE_CHIP_ERASE
+		if (data[2] == 0xAC && data[3] == 0x80 && data[4] == 0x00 && data[5] == 0x00) {
+			perform_chip_erase();
+		}
 		#endif
 
 		// all other commands are unhandled
@@ -332,6 +381,9 @@ uchar	usbFunctionWrite ( uchar* data, uchar len )
 			}
 		}
 		#endif
+		#ifdef ENABLE_BLANK_CHECK
+		isBlank = 0;
+		#endif
 	}
 
 	return isLast;
@@ -346,10 +398,19 @@ int	main ( void )
 	MCUSR &= ~(1 << WDRF);
 	wdt_disable();
 
+	#ifdef ENABLE_BLANK_CHECK
+	if (pgm_read_word(0) == 0xFFFF) {
+		isBlank = 1;
+	}
+	else {
+		isBlank = 0;
+	}
+	#endif
+
 	MCUCR = (1 << IVCE);	// enable change of interrupt vectors
 	MCUCR = (1 << IVSEL);	// move interrupts to boot flash section
 
-	// start 16-bit timer1
+	// start 16-bit timer1 for slow counting time
 	TCCR1B = 0x05;
 
 	LED_DDR |= _BV(LED); // LED pin on Trinket Pro
@@ -362,6 +423,11 @@ int	main ( void )
 	LED_PORT &= ~_BV(LED);
 	usbDeviceConnect();
 	sei();
+
+	TCCR1B = 0x01; // speed up timer for PWM LED pulsing
+	uint8_t t1ovf = 0;
+	uint16_t duty = 0;
+	char dutyDir = 0;
 
 	#ifdef ENABLE_OPTIBOOT
 	optiboot_init();
@@ -377,12 +443,20 @@ int	main ( void )
 		if (ob == 1) {
 			timeout = 0;
 		}
-		else if (ob == 2) {
+		else if (ob == 2
+		#ifdef ENABLE_BLANK_CHECK
+		&& isBlank == 0
+		#endif
+		) {
 			break;
 		}
 		#endif
 
-		if ((timeout > BOOTLOADER_TIMEOUT)
+		if ((timeout > BOOTLOADER_TIMEOUT
+		#ifdef ENABLE_BLANK_CHECK
+		&& isBlank == 0
+		#endif
+		)
 		#ifdef ENABLE_REQUEST_EXIT
 		|| req_boot_exit != 0
 		#endif
@@ -393,20 +467,40 @@ int	main ( void )
 		}
 
 		uint16_t t = TCNT1;
+		if ((TIFR1 & _BV(TOV1)) != 0) // if timer has overflowed
+		{
+			TIFR1 |= _BV(TOV1); // clear the flag
+			if (usbHasRxed != 0)
+			{
+				LED_PORT |= _BV(LED);
+				if (duty == 0) {
+					dutyDir = dutyDir ? 0 : 1;
+				}
 
-		if (t > (F_CPU / 1024)) {
+				if (dutyDir == 0) {
+					duty -= 512;
+				}
+				else {
+					duty += 512;
+				}
+			}
+			t1ovf++;
+
 			// roughly 1 second
-			timeout++;
-			TCNT1 = 0; // reset to count another second
+			#if (F_CPU == 12000000)
+			if (t1ovf > 183) {
+			#elif (F_CPU == 16000000)
+			if (t1ovf > 244) {
+			#endif
+				t1ovf = 0;
+				timeout++;
+			}
 		}
 
+		// fade the LED
 		if (usbHasRxed != 0)
 		{
-			// blink LED if connected to computer
-			if ((t & 4096) == 0) {
-				LED_PORT |= _BV(LED);
-			}
-			else {
+			if (t > duty) {
 				LED_PORT &= ~_BV(LED);
 			}
 		}
@@ -418,7 +512,9 @@ int	main ( void )
 
 	#if defined(ENABLE_REQUEST_EXIT) && defined(ENABLE_CLEAN_EXIT)
 	// wait to finish all USB comms, avoids "avrdude: error: usbtiny_transmit: usb_control_msg: sending control message failed"
-	TCNT1 = 0; while (req_boot_exit != 0 && TCNT1 < 4000) usbPoll();
+	TCCR1B = 0x05; // slow down timer
+	TCNT1 = 0;
+	while (req_boot_exit != 0 && TCNT1 < 4000) usbPoll();
 	#endif
 
 	// cleanup!
