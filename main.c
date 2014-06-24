@@ -477,11 +477,12 @@ int	main ( void )
 					dutyDir = dutyDir ? 0 : 1;
 				}
 
+				#define WAITING_LED_FADE_RATE 512 // must be power of 2
 				if (dutyDir == 0) {
-					duty -= 512;
+					duty -= WAITING_LED_FADE_RATE;
 				}
 				else {
-					duty += 512;
+					duty += WAITING_LED_FADE_RATE;
 				}
 			}
 			t1ovf++;
@@ -497,11 +498,29 @@ int	main ( void )
 			}
 		}
 
-		// fade the LED
 		if (usbHasRxed != 0)
 		{
+			// fade the LED
 			if (t > duty) {
 				LED_PORT &= ~_BV(LED);
+			}
+		}
+		else
+		{
+			#define WAITING_LED_BLINK_RATE 16
+			if  ((t1ovf > (WAITING_LED_BLINK_RATE * 0)
+			  &&  t1ovf < (WAITING_LED_BLINK_RATE * 1))
+			  || (t1ovf > (WAITING_LED_BLINK_RATE * 2)
+			  &&  t1ovf < (WAITING_LED_BLINK_RATE * 3))
+			  #if (F_CPU == 16000000)
+			  || (t1ovf > (WAITING_LED_BLINK_RATE * 4)
+			  &&  t1ovf < (WAITING_LED_BLINK_RATE * 5))
+			  #endif
+			  ) {
+			  LED_PORT |= _BV(LED);
+			}
+			else {
+			  LED_PORT &= ~_BV(LED);
 			}
 		}
 	}
