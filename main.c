@@ -57,8 +57,8 @@
 #define ENABLE_FLASH_READING
 #define ENABLE_EEPROM_WRITING
 #define ENABLE_EEPROM_READING
-#define ENABLE_CHIP_ERASE
-#define ENABLE_CHIP_ERASE_EEPROM_FUSE_CHECK
+//#define ENABLE_CHIP_ERASE
+//#define ENABLE_CHIP_ERASE_EEPROM_FUSE_CHECK
 #define ENABLE_SIG_READING
 #define ENABLE_FUSE_READING
 #define ENABLE_REQUEST_EXIT // note: enabling this actually decreases code size
@@ -67,7 +67,8 @@
 #define ENABLE_BLANK_CHECK
 
 // timeout for the bootloader
-#define BOOTLOADER_TIMEOUT 5
+#define USBBOOTLOADER_TIMEOUT 10
+#define UARTBOOTLOADER_TIMEOUT 3
 
 enum
 {
@@ -452,15 +453,20 @@ int	main ( void )
 		}
 		#endif
 
-		if ((timeout > BOOTLOADER_TIMEOUT
+		if ( ((usbHasRxed != 0) && (timeout > USBBOOTLOADER_TIMEOUT)
 		#ifdef ENABLE_BLANK_CHECK
 		&& isBlank == 0
 		#endif
-		)
+		    ) || ((usbHasRxed == 0) && (timeout > UARTBOOTLOADER_TIMEOUT)
+		#ifdef ENABLE_BLANK_CHECK
+		&& isBlank == 0
+		#endif
+			  )
 		#ifdef ENABLE_REQUEST_EXIT
 		|| req_boot_exit != 0
 		#endif
-		) {
+		
+		     )    {
 			// requested exit
 			// or timed out waiting for activity (timeout means not connected to computer)
 			break;
