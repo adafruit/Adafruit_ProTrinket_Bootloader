@@ -40,6 +40,8 @@
 
 #define FROM_OPTIBOOT_C
 #include "optiboot.h"
+#include <util/delay.h>
+#include <avr/wdt.h>
 
 static uint8_t  buff[SPM_PAGESIZE * 2];
 static uint16_t address = 0;
@@ -183,10 +185,11 @@ char optibootPoll()
     }
     else if (ch == STK_LEAVE_PROGMODE) { /* 'Q' */
       // Adaboot no-wait mod
-      //watchdogConfig(WATCHDOG_16MS);
+      wdt_enable(WDTO_30MS);
       if (verifySpace()) return 2;
       putch(STK_OK);
-      return 2;
+      //app_start(); // jump to user app
+      return 2;  // never reached!
     }
     else {
       // This covers the response to commands like STK_ENTER_PROGMODE
@@ -214,7 +217,14 @@ uint8_t getch(void) {
 #endif
 #endif
 
-  while(!(UART_SRA & _BV(RXC0))) ;
+  int32_t timeout = OPTIBOOT_UART_TIMEOUT;
+  while(!(UART_SRA & _BV(RXC0))) {
+    timeout-=10;
+    if (timeout <= 0) {
+      app_start(); // jump to user app
+    }
+    _delay_us(10);
+  }
   
   ch = UART_UDR;
 
@@ -257,5 +267,7 @@ void optiboot_init(void)
     UART_SRB = _BV(RXEN0) | _BV(TXEN0);
     UART_SRC = _BV(UCSZ00) | _BV(UCSZ01);
     UART_SRL = (uint8_t)( (F_CPU + BAUD_RATE * 4L) / (BAUD_RATE * 8L) - 1 );
+    // set RX pin to have a pullup?
+    DDRD |= _BV(PD0);
   #endif
 }

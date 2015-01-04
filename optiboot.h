@@ -41,6 +41,8 @@
 #ifndef OPTIBOOT_H_
 #define OPTIBOOT_H_
 
+#define OPTIBOOT_UART_TIMEOUT 1000000       // in microseconds
+
 char optibootPoll(void);
 void optiboot_init(void);
 

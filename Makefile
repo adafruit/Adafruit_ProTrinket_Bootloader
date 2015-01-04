@@ -23,6 +23,7 @@ DEVICE = atmega328p
 BOOTLOADER_ADDRESS = 7000
 FUSEOPT = $(FUSEOPT_328)
 LOCKOPT = -U lock:w:0x2F:m
+UNLOCKOPT = -U lock:w:0x3F:m
 
 PROGRAMMER = -c usbtiny
 # PROGRAMMER contains AVRDUDE options to address your programmer
@@ -30,7 +31,7 @@ PROGRAMMER = -c usbtiny
 FUSEOPT_8 = -U hfuse:w:0xD0:m -U lfuse:w:0xBF:m
 FUSEOPT_88 = -U hfuse:w:0xD5:m -U lfuse:w:0xFF:m -U efuse:w:0xF8:m
 FUSEOPT_168 = -U hfuse:w:0xD5:m -U lfuse:w:0xFF:m -U efuse:w:0xF8:m
-FUSEOPT_328 = -U lfuse:w:0xFF:m -U hfuse:w:0xD0:m -U efuse:w:0xFD:m
+FUSEOPT_328 = -U lfuse:w:0xFF:m -U hfuse:w:0xD0:m -U efuse:w:0x05:m
 # You may have to change the order of these -U commands.
 
 ###############################################################################
@@ -71,6 +72,9 @@ readflash:
 
 fuse:
 	$(AVRDUDE) $(FUSEOPT)
+
+unlock:
+	$(AVRDUDE) $(UNLOCKOPT)
 
 lock:
 	$(AVRDUDE) $(LOCKOPT)
